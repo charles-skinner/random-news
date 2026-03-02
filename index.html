@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Random US Politician on X</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; max-width: 760px; margin: 48px auto; padding: 0 16px; }
+    h1 { margin-bottom: 8px; }
+    .sub { color: #444; margin-top: 0; }
+    .card { border: 1px solid #ddd; border-radius: 14px; padding: 16px; margin: 18px 0; }
+    button { font-size: 16px; padding: 10px 14px; cursor: pointer; border-radius: 10px; border: 1px solid #ccc; background: #fff; }
+    button:hover { background: #f6f6f6; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .muted { color: #555; font-size: 14px; }
+    .result { font-size: 18px; margin-top: 10px; }
+    code { background: #f3f3f3; padding: 2px 6px; border-radius: 6px; }
+    .pill { display: inline-block; padding: 2px 8px; border: 1px solid #ddd; border-radius: 999px; font-size: 12px; color: #333; margin-left: 8px; }
+    .warn { color: #7a3; }
+  </style>
+</head>
+<body>
+  <h1>Random US Politician on X</h1>
+  <p class="sub">Curated list → random pick → takes you to the profile.</p>
+
+  <div class="card">
+    <div class="row">
+      <button id="go">Randomize →</button>
+      <button id="copy" disabled>Copy link</button>
+      <button id="open" disabled>Open in new tab</button>
+    </div>
+
+    <p class="muted" style="margin-top:12px;">Optional filters (only matter if you use categories in the list):</p>
+    <div class="row" style="margin-top:6px;">
+      <label><input type="checkbox" id="f-house" checked> House</label>
+      <label><input type="checkbox" id="f-senate" checked> Senate</label>
+      <label><input type="checkbox" id="f-other" checked> Other</label>
+    </div>
+
+    <div class="result" id="result" aria-live="polite"></div>
+    <div class="muted" id="hint"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0;">Edit your list</h3>
+    <p class="muted">
+      Add entries in the <code>people</code> array below. You can paste handles (like <code>AOC</code>) or full URLs.
+      Categories are optional but useful for filters.
+    </p>
+    <p class="muted warn">
+      Note: Some accounts may redirect, be suspended, or require login depending on X settings.
+    </p>
+  </div>
+
+  <script>
+    // =========================
+    // 1) EDIT THIS LIST
+    // =========================
+    // category: "house" | "senate" | "other" (optional but recommended)
+    const people = [
+      { name: "President (POTUS)", handleOrUrl: "POTUS", category: "other" },
+      { name: "Sen. Chuck Schumer", handleOrUrl: "SenSchumer", category: "senate" },
+      { name: "Speaker Mike Johnson", handleOrUrl: "SpeakerJohnson", category: "house" },
+      { name: "Rep. Alexandria Ocasio-Cortez", handleOrUrl: "AOC", category: "house" },
+      { name: "Sen. Elizabeth Warren", handleOrUrl: "SenWarren", category: "senate" },
+      // Add more like:
+      // { name: "Rep. Example Name", handleOrUrl: "ExampleHandle", category: "house" },
+      // { name: "Sen. Example Name", handleOrUrl: "https://x.com/ExampleHandle", category: "senate" },
+    ];
+
+    // =========================
+    // 2) LOGIC (no need to edit)
+    // =========================
+    const elResult = document.getElementById("result");
+    const elHint = document.getElementById("hint");
+    const btnCopy = document.getElementById("copy");
+    const btnOpen = document.getElementById("open");
+
+    const fHouse = document.getElementById("f-house");
+    const fSenate = document.getElementById("f-senate");
+    const fOther = document.getElementById("f-other");
+
+    let lastPickUrl = null;
+
+    function toProfileUrl(handleOrUrl) {
+      const s = String(handleOrUrl).trim();
+      if (!s) return null;
+      if (s.startsWith("http://") || s.startsWith("https://")) return s;
+      // accept "@handle" too
+      const handle = s.startsWith("@") ? s.slice(1) : s;
+      return `https://x.com/${encodeURIComponent(handle)}`;
+    }
+
+    function allowedCategories() {
+      const allowed = new Set();
+      if (fHouse.checked) allowed.add("house");
+      if (fSenate.checked) allowed.add("senate");
+      if (fOther.checked) allowed.add("other");
+      return allowed;
+    }
+
+    function filteredPeople() {
+      const allowed = allowedCategories();
+      // If an entry has no category, treat as "other"
+      return people.filter(p => allowed.has((p.category || "other").toLowerCase()));
+    }
+
+    function pickRandom(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function setButtonsEnabled(enabled) {
+      btnCopy.disabled = !enabled;
+      btnOpen.disabled = !enabled;
+    }
+
+    async function copyToClipboard(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        elHint.textContent = "Copied to clipboard.";
+      } catch {
+        // fallback
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        elHint.textContent = "Copied to clipboard.";
+      }
+    }
+
+    document.getElementById("go").addEventListener("click", () => {
+      const pool = filteredPeople();
+
+      if (!people.length) {
+        elResult.textContent = "Your list is empty. Add entries in the people[] array.";
+        elHint.textContent = "";
+        setButtonsEnabled(false);
+        return;
+      }
+
+      if (!pool.length) {
+        elResult.textContent = "No one matches the selected filters. Check at least one category.";
+        elHint.textContent = "";
+        setButtonsEnabled(false);
+        return;
+      }
+
+      const pick = pickRandom(pool);
+      const url = toProfileUrl(pick.handleOrUrl);
+
+      if (!url) {
+        elResult.textContent = "That entry has an empty handle/url. Fix it in the list.";
+        elHint.textContent = "";
+        setButtonsEnabled(false);
+        return;
+      }
+
+      lastPickUrl = url;
+      setButtonsEnabled(true);
+
+      elResult.innerHTML = `Selected: <strong>${pick.name || pick.handleOrUrl}</strong>
+        <span class="pill">${(pick.category || "other").toUpperCase()}</span><br/>
+        <span class="muted">Going to:</span> <a href="${url}" rel="noopener noreferrer">${url}</a>`;
+
+      // redirect user
+      window.location.href = url;
+    });
+
+    btnCopy.addEventListener("click", () => {
+      if (lastPickUrl) copyToClipboard(lastPickUrl);
+    });
+
+    btnOpen.addEventListener("click", () => {
+      if (lastPickUrl) window.open(lastPickUrl, "_blank", "noopener,noreferrer");
+    });
+  </script>
+</body>
+</html>
